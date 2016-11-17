@@ -1,0 +1,45 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-redhat-linux-gnu (64-bit)
+
+R est un logiciel libre livré sans AUCUNE GARANTIE.
+Vous pouvez le redistribuer sous certaines conditions.
+Tapez 'license()' ou 'licence()' pour plus de détails.
+
+R est un projet collaboratif avec de nombreux contributeurs.
+Tapez 'contributors()' pour plus d'information et
+'citation()' pour la façon de le citer dans les publications.
+
+Tapez 'demo()' pour des démonstrations, 'help()' pour l'aide
+en ligne ou 'help.start()' pour obtenir l'aide au format HTML.
+Tapez 'q()' pour quitter R.
+
+> # This script uses the function in simulate_effect to generate
+> # the dataset and split it into training, validation and test sets.
+> 
+> rm(list=ls())
+> source("simulate_effect.R")
+> covariate <- read.csv('/labs/shahlab/OSIM2/covariate.csv', check.names=T)
+> 
+> 
+> #-----------------------------------------------------------------------------
+> # Simulate and format data
+> #-----------------------------------------------------------------------------
+> ## Confounding magnitude
+> # conf.case = 1   # low
+>  conf.case = 2   # moderate
+> # conf.case = 3   # high
+> 
+> ## Type of Treatment Effect
+> # TE.type = 0 # Zero effect
+> TE.type = 1 # marginal effect of 1
+> # TE.type = 2 # non-linear HTE
+> 
+> 
+> ## Simulate data 
+> seed = as.numeric(sample(1:1000, 1))
+> lSim <- simulateTreatmentEffect(covariate, seed, conf.case, TE.type)
+Erreur dans library(logitnorm) : there is no package called ‘logitnorm’
+Calls: simulateTreatmentEffect -> library
+Exécution arrêtée
