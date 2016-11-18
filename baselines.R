@@ -6,9 +6,7 @@
 ###############################################################################
 .libPaths(c("~/R/x86_64-redhat-linux-gnu-library/3.1", .libPaths()))
 
-RScriptPath="/home/yenlow/scripts"
-source(paste(RScriptPath, "/R/utils.R", sep="")) # installnewpackage
-source(paste(RScriptPath, "/R/patientChar.R", sep="")) # patientchar
+source("utils.R")
 
 ############# IMPORTS #############
 installnewpackage(c("rJava", "Matching", "Epi", "glmnet", "randomForest", 

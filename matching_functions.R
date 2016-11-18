@@ -5,9 +5,7 @@
 # Nathanael Romano
 ###############################################################################
 
-RScriptPath="/home/yenlow/scripts"
-source(paste(RScriptPath,"/R/utils.R", sep="")) # installnewpackage
-source(paste(RScriptPath,"/R/logit.R", sep="")) # coeffAtlambda
+source("utils.R")
 
 installnewpackage(c("rJava", "flexmix", "ROCR", "Epi", "reshape", "scales"))
 require(flexmix)
