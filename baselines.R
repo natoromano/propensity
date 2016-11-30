@@ -44,7 +44,7 @@ dir.create(tempDir)
 .jclassPath()
 
 # required functions
-source("matching_functions.R")
+source("R/matching_functions.R")
 
 # load data
 dtrain <- read.table("/scratch/users/naromano/OSIM2/dtrain.txt", header=T)

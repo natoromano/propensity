@@ -1,6 +1,6 @@
 # Ignore python binaries
 *.pyc
-py/*pyc
+utils/*pyc
 
 # Ignore R data and output
 *.Rout
@@ -15,9 +15,8 @@ R/*.Rout
 # Ignore plots
 *.pdf
 R/*.pdf
-py/*.pdf
+utils/*.pdf
 
 # Ignore python output
 .ipynb_checkpoints/
-py/.ipynb_checkpoints/
 
