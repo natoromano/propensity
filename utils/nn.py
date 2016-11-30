@@ -6,7 +6,6 @@ using TensorFlow.
 import tensorflow as tf
 
 
-
 def add_fully_connected(x, inshape, outshape, relu=False):
     """
     Creates a fully connected layer with specified in and 
@@ -20,14 +19,12 @@ def add_fully_connected(x, inshape, outshape, relu=False):
         return tf.matmul(x, W) + b
 
 
-
 def create_weights(shape, stdDev=0.1):
     """
     Creates a TF weight matrix.
     """
     init = tf.truncated_normal(shape, stddev=stdDev)
     return tf.Variable(init)
-
 
 
 def create_bias(shape, defaultVal=0.1):
@@ -38,7 +35,6 @@ def create_bias(shape, defaultVal=0.1):
     return tf.Variable(init)
 
 
-
 def conv2d(x, W):
     """
     Creates a simple convolution with specified weights.
@@ -46,7 +42,6 @@ def conv2d(x, W):
     return tf.nn.conv2d(
         x, W, strides=[1, 1, 1, 1], padding='SAME'
     )
-
 
 
 def max_pool_2x2(x):
