@@ -6,6 +6,8 @@
 ###############################################################################
 .libPaths(c("~/R/x86_64-redhat-linux-gnu-library/3.1", .libPaths()))
 
+rm(list=ls())
+setwd("/home/naromano/propensity")
 source("utils.R")
 
 ############# IMPORTS #############
@@ -14,7 +16,7 @@ installnewpackage(c("rJava", "Matching", "Epi", "glmnet", "randomForest",
 
 require(rJava)
 require(Matching)
-require(Epi) # clogistic
+require(Epi)  # clogistic
 require(glmnet)
 require(randomForest)
 require(vegan)
@@ -30,31 +32,30 @@ cl <- makeCluster(10)
 registerDoParallel(cl)
 
 ############# SET-UP #############
-rm(list=ls())
-setwd("/Users/dsromano/Documents/Stanford/Shah Lab/Propensity")
 
 baseDir <- getwd();
 tempDir <- paste(baseDir, "tmp", sep="/") # output directory
-patientfile <- paste(baseDir,"patients.txt",sep="")
+patientfile <- paste(baseDir, "patients.txt", sep="/")
 dir.create(tempDir)
 
 # initialize the Java subsystem. include a jdbc object
-.jinit(classpath="/home/yenlow/software/pharmacoepi.jar", 
-       force.init=TRUE, parameters="-Xmx2g");
+.jinit(classpath="/home/naromano/software/pharmacoepi.jar", 
+       force.init=TRUE, parameters="-Xmx12gm");
 .jclassPath()
 
 # required functions
 source("matching_functions.R")
 
 # load data
-dtrain <- read.table("dtrain.txt", header=T)
+dtrain <- read.table("/scratch/users/naromano/OSIM2/dtrain.txt", header=T)
 
 # define covariate names
 id <- "id"
 exposed <- "Z"
 outcome <- "Y"
 # empirical variables may be matched depending on HD-PS
-empvariables <- setdiff(colnames(dtrain), c("Z", "Y", "e", "po", "tau", "TE"))
+empvariables <- setdiff(colnames(dtrain),
+                        c("Z", "Y", "e", "po", "tau", "TE"))
 empvariables_num <- c("YOB")
 empvariables_cat <- setdiff(empvariables, empvariables_num)
 
@@ -65,31 +66,35 @@ desiredOrder <- c("n1", "ORmatched", "ORlow_matched", "ORupp_matched",
 
 # prepare result arrays
 startAll <- proc.time()[1:3]
-Ndraw <- 10
-Nmethods <- 4 # 4 baselines: unadjusted, hdps, psm, euclidean matching
+Nmethods <- 3 # 4 baselines: unadjusted, hdps, psm, euclidean matching
 resultsArray <- array(dim=c(Nmethods, 20))  
 pmatArray <- array(dim=c(Nmethods + 1, length(empvariables)))
 smdmatArray <- pmatArray
 time <- array(dim=c(Nmethods, 3))
-dimnames(time)[[1]] <- c("unadjusted", "PSM", "hdPS", "euclidean")
+dimnames(time)[[1]] <- c("unadjusted", "PSM", "euclidean")
 dimnames(time)[[2]] <- c("user", "system", "elapsed")
 dimnames(resultsArray)[[1]] <- dimnames(time)[[1]]
 matchedID <- list()
 
 dtrain$id <- 1:nrow(dtrain)
 nminor <- min(table(dtrain[, exposed]))
-trueATE <- mean(dtrain$TE)
+trueCoeff <- mean(dtrain$TE)
+trueOR <- exp(trueCoeff)
 Nexposed <- sum(dtrain[, exposed])
+Noutcomes <- sum(dtrain[, outcome])
 
 ############# hdPS #############
 if (FALSE) {
-  print("############# hdPS ############")
+  # skipping for now as too many dimensions
+  # TODO: only keep top 100 correlated dimensions w/ Z and Y?
+  print("############ hdPS ############")
   start <- proc.time()[1:3]
   
   # prepare data into format required by hdps
   # read data file as single string (to use addPatientsFromBuffer)
   patientheader <- paste(id, exposed, outcome, sep="\t")
-  patientstring <- paste(paste(dtrain[, id], dtrain[,exposed], dtrain[,outcome],
+  patientstring <- paste(paste(dtrain[, id], dtrain[, exposed], 
+                               dtrain[, outcome],
                                sep="\t"), collapse="\n")
   # for reading in whole file as single string
   # patientstring=readChar(patientfile, file.info(patientfile)$size)
@@ -104,37 +109,36 @@ if (FALSE) {
   ### INVOKE pharmacoepi.jar ### (handles cat variables only)
   hdpsobj <- hdps(datainstring, dimdata, outDir=tempDir, Nmostfreq=10, k=10,
                   stratifyDim=FALSE, outfile="output_cohort.txt",
-                  FullOutput=TRUE, verbose=T, ZeroCellCorrection=F)
+                  FullOutput=TRUE, verbose=F, ZeroCellCorrection=F)
   hdpsobj$selectedvariables # (see Fig2, Schneeweiss 2008)
   wantedvar <- hdpsobj$selectedvariables[grep("1Once$",
                                               hdpsobj$selectedvariables)]
   
-  var_corExposed <- empvariables_num[abs(cor(ds10[, exposed],
-                                             ds10[, empvariables_num]))>0.05]
-  var_corOutcome <- empvariables_num[abs(cor(ds10[, outcome], # include in PS
-                                             ds10[, empvariables_num]))>0.05]
-  IV <- setdiff(var_corExposed, var_corOutcome) #exclude from PS
+  var_corExposed <- empvariables_num[abs(cor(dtrain[, exposed],
+                                             dtrain[, empvariables_num]))>0.05]
+  var_corOutcome <- empvariables_num[abs(cor(dtrain[, outcome], # include in PS
+                                             dtrain[, empvariables_num]))>0.05]
+  IV <- setdiff(var_corExposed, var_corOutcome) # exclude from PS
   
   # Estimate the PS (force numerical variables into PS model)
-  dataPS <- cbind(ds10[,c(id, exposed, var_corOutcome)],
+  dataPS <- cbind(dtrain[,c(id, exposed, var_corOutcome)],
                   hdpsobj$hdpsdata[,wantedvar])
   hdPsMod <- glm(paste(exposed, "~ . -", id), data=dataPS, family="binomial")
-  names(hdPsMod$fitted.values) <- as.character(dataPS[,id])
+  names(hdPsMod$fitted.values) <- as.character(dataPS[, id])
   summary(hdPsMod$fitted.values)
   
   hdResults <- extractResults(ps=hdPsMod$fitted, exposurevec=hdPsMod$y,
                               fmod=NULL, data=dtrain, id=id, exposed=exposed,
-                              outcome=outcome, logitFlag=TRUE, outfile=NULL,
-                              verbose=FALSE)
+                              outcome=outcome, logitFlag=TRUE,
+                              outfile=NULL, verbose=FALSE)
   
   end <- proc.time()[1:3]
-  time["hdPS",,i] <- end-start
+  time["hdPS",] <- end-start
 }
 
-
 ############# lassoPS #############
-print("############### lassoPS ############")
-start=proc.time()[1:3]
+print("############ lassoPS ############")
+start <- proc.time()[1:3]
 
 xmat <- as.matrix(dtrain[, empvariables])
 # penalty.factor=c(0, rep(1, ncol(xmat)-1)) # set 0 to force variable into model
@@ -146,24 +150,24 @@ lassoPSBeta <- coeffAtlambda(lassoPsmod)[-1]  # exclude intercept
 
 # get estimated ps in logit form
 psl <- unlogit(as.numeric(predict(lassoPsmod, xmat, s=lassoPsmod$lambda.1se)))
-names(psl) <- dtrain[,id]
+names(psl) <- dtrain[, id]
 
-lassoResults <- extractResults(ps=psl, exposurevec=dtrain[,exposed], fmod=NULL,
-                               data=ds10, id=id, exposed=exposed,
+lassoResults <- extractResults(ps=psl, exposurevec=dtrain[, exposed], fmod=NULL,
+                               data=dtrain, id=id, exposed=exposed,
                                outcome=outcome, logitFlag=TRUE,
                                outfile=NULL, verbose=FALSE)
 
 end <- proc.time()[1:3]
-time["PSM",,i] <- end-start
+time["PSM",] <- end-start
 
 
 ############# SIMILARITY #############
 print("############ similarity ############")
 
-xmat_ctrl <- xmat[dtrain[,exposed]==0,]
-xmat_trted <- xmat[dtrain[,exposed]==1,]
-rownames(xmat_ctrl) <- dtrain[dtrain[,exposed]==0, id]
-rownames(xmat_trted) <- dtrain[dtrain[,exposed]==1, id]
+xmat_ctrl <- xmat[dtrain[, exposed]==0,]
+xmat_trted <- xmat[dtrain[, exposed]==1,]
+rownames(xmat_ctrl) <- dtrain[dtrain[, exposed]==0, id]
+rownames(xmat_trted) <- dtrain[dtrain[, exposed]==1, id]
 
 runSimPS <- function(method="euclidean", caliper=0.7, nsd=3,
                      algorithm="kd_tree"){
@@ -171,27 +175,29 @@ runSimPS <- function(method="euclidean", caliper=0.7, nsd=3,
                             k_neighbors=5, caliper=caliper, nsd=nsd,
                             algorithm=algorithm)
   simResults <- extractResults(ps=matchedSim, exposurevec=NULL,
-                               data=ds10, fmod=NULL, id=id, exposed=exposed,
+                               data=dtrain, fmod=NULL, id=id, exposed=exposed,
                                outcome=outcome, logitFlag=F,
                                outfile=NULL,verbose=FALSE)
   return(simResults)
 }
 
 start <- proc.time()[1:3]
-euclideanResults <- runSimPS(method="euclidean", nsd=3, algorithm="brute")
-end=proc.time()[1:3]
-time["euclidean",,i] <- end-start
+euclideanResults <- runSimPS(method="euclidean", caliper=0.8,
+                               nsd=3, algorithm="kd_tree")
+end <- proc.time()[1:3]
+time["euclidean",] <- end-start
 
 
 ####### UNADJUSTED ########
 print("############ lassoMV model ############")
 start <- proc.time()[1:3]
 
-xmat <- Matrix(as.matrix(dtrain[, exposed]), 
+xmat <- Matrix(as.matrix(dtrain[, c("YOB", exposed)]), 
                sparse=T)
-penalty.factor <- c(0, rep(1, ncol(xmat)-1))
-lassoUnAdjmod <- cv.glmnet(xmat, dtrain[,outcome], alpha=1, family="binomial",
-                           standardize=F, nfold=5, penalty.factor=penalty.factor)
+penalty.factor <- c(0, 1)
+lassoUnAdjmod <- cv.glmnet(xmat, dtrain[, outcome], alpha=1, family="binomial",
+                           standardize=F, nfold=5, 
+                           penalty.factor=penalty.factor)
 
 coeff <- na.omit(sort(coeffAtlambda(lassoUnAdjmod)))
 
@@ -200,7 +206,7 @@ lassomodbootstrap <- genCI(xmat, dtrain[,outcome], ntrials=100,
                            penalty.factor=penalty.factor)
 lassomodCI <- setCL(lassomodbootstrap)
 
-ORCInonZero=as.data.frame(exp(lassomodCI$betaCIlim[lassomodCI$beta_nonZero,]))
+ORCInonZero <- as.data.frame(exp(lassomodCI$betaCIlim[lassomodCI$beta_nonZero,]))
 Smd <- smd(dtrain[,c(exposed,outcome)], exposed=exposed, variable=outcome,
            verbose=FALSE, categorical=TRUE)
 se_adj <- (lassomodCI$betaCIlim[exposed,3] - 
@@ -213,57 +219,58 @@ results <- c(n0=nrow(dtrain), n1=NA,
              coeff_adj=lassomodCI$betaCIlim[exposed,2],
              se_adj=se_adj,
              rep(NA,5))
+names(results) <- colnames(lassoResults[[1]])
 lassoUnAdjResults <- list(results=results, matchedID=NULL)
 
-end=proc.time()[1:3]
+end <- proc.time()[1:3]
 time["unadjusted",] <- end-start
 
 # consolidate matchedIDs
-matchedID[[i]] <- list(hdResults[[2]], lassoResults[[2]], euclideanResults[[2]],
-                       lassoUnAdjResults[[2]])
-names(matchedID[[i]]) <- dimnames(time)[[1]]
+matchedID <- list(lassoUnAdjResults[[2]], lassoResults[[2]],
+                  euclideanResults[[2]])
+names(matchedID) <- dimnames(time)[[1]]
 
 # check if baseline variables are balanced
 beforeMatching <- matchStats(numvar=empvariables_num, catvar=empvariables_cat,
                              treatment=exposed, data=dtrain,
                              outXlsx=NULL, verbose=FALSE)
 afterMatching <- list()
-for(j in 1:14){
+for(j in c(3, 2, 1)){
   # unadjusted req special handling (shouldn't be matched)
-  if (j==4) {
-    afterMatching[[j]] <- afterMatching[[1]]
+  if (j==1) {
+    afterMatching[[j]] <- afterMatching[[3]]
   } else {
     afterMatching[[j]] <- matchStats(numvar=empvariables_num,
                                      catvar=empvariables_cat,
                                      treatment=exposed,
-                                     data=dtrain[matchedID[[i]][[j]],],
-                                     outXlsx=NULL,verbose=FALSE)
+                                     data=dtrain[matchedID[[j]],],
+                                     outXlsx=NULL, verbose=FALSE)
   }
 }
-names(afterMatching) <- names(matchedID[[i]])[-(5:6)]
+names(afterMatching) <- names(matchedID)
 
 # extract pval matrix
 # initialize pmat vector with beforeMatching
 pmat <- extractPval(beforeMatching)
+
 # append pmat vector with afterMatching
-pmat <- cbind(pmat,sapply(afterMatching, extractPval))
+pmat <- cbind(pmat, sapply(afterMatching, extractPval))
 colnames(pmat)[1] <- "before"
-pmat <- cbind(pmat, bootstrap=NA, jackknife=NA)
 pmat[, "unadjusted"] <- NA
 
 # extract smd matrix
 # initialize smdmat vector with beforeMatching
 smdmat <- extractSmd(beforeMatching)
 # append smdmat vector with afterMatching
-smdmat <- cbind(smdmat,sapply(afterMatching, extractSmd))
+smdmat <- cbind(smdmat, sapply(afterMatching, extractSmd))
 colnames(smdmat)[1] <- "before"
-smdmat <- cbind(smdmat, bootstrap=NA, jackknife=NA)
-smdmat[,"unadjusted"] <- NA
+smdmat <- cbind(smdmat)
+smdmat[, "unadjusted"] <- NA
 
 # consolidate results
-resultsmat <- as.data.frame(rbind(hdResults[[1]], lassoResults[[1]],
-                                  euclideanResults[[1]], 
-                                  lassoUnAdjResults[[1]]))
+resultsmat <- as.data.frame(rbind(lassoUnAdjResults[[1]],
+                                  lassoResults[[1]],
+                                  euclideanResults[[1]]))
 rownames(resultsmat) <- dimnames(time)[[1]]
 resultsmat$bias_adj <- resultsmat$coeff_adj-trueCoeff
 resultsmat$bias_matched <- resultsmat$coeff_matched-trueCoeff
@@ -285,4 +292,4 @@ dimnames(resultsArray) <- list(rownames(resultsmat), desiredOrder)
 dimnames(pmatArray) <- list(colnames(pmat), empvariables)
 dimnames(smdmatArray) <- list(colnames(smdmat), empvariables)
 save(resultsArray, time, lassoPSBeta, bestlambda, matchedID, Noutcomes,
-     Nexposed, trueATE, pmatArray, smdmatArray, file="baseline_results.RData")
+     Nexposed, trueCoeff, pmatArray, smdmatArray, file="baseline_results.RData")

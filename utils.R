@@ -23,10 +23,10 @@ matchStats <- function(numvar, catvar, treatment, data,
   colnames(numvardataframe) <- c("label", "", "meanX", "sdX", "meanY", "sdY",
                                  "p.value", "smd")
   for(j in 1:length(numvar)) {
-    if(verbose==TRUE) cat("\n","\n",numvar[j],"\n")
-    x <- data[data[,treatment]==0, numvar[j]]
-    y <- data[data[,treatment]==1, numvar[j]]
-    ttest <- try(t.test(x,y,alternative="two.sided"))
+    if(verbose==TRUE) cat("\n", "\n", numvar[j], "\n")
+    x <- data[data[, treatment]==0, numvar[j]]
+    y <- data[data[, treatment]==1, numvar[j]]
+    ttest <- try(t.test(x, y, alternative="two.sided"))
     smdval <- smd(data, exposed=treatment, variable=numvar[j], categorical=F,
                   verbose=verbose)
 
@@ -163,3 +163,12 @@ genCI <- function(xmat, yvec, ntrials=100, family="binomial", lambda,
   list(coeffarray=coeffarray, type="glmnet")
 }
 
+setCL <- function(CIobj, CL=c(0.025,0.5,0.975), maxNA=0.5, verbose=FALSE) {
+  betaCIlim <- t(apply(CIobj$coeffarray, 1, quantile, probs=CL, na.rm=T,
+                       names=F))
+  colnames(betaCIlim) <- c("lowlim", "median", "upplim")
+  beta_nonZero <- !apply(betaCIlim, 1, function(x) x[1]==0 & x[3]==0)
+  fracNA <- (rowSums(is.na(CIobj$coeffarray))/ncol(CIobj$coeffarray)) < maxNA
+  beta_nonZero <- ((beta_nonZero+fracNA)==2)
+  return(list(betaCIlim=betaCIlim,beta_nonZero=beta_nonZero))
+}

@@ -6,7 +6,6 @@ setwd("/home/naromano/propensity/")
 source("simulate_effect.R")
 covariate <- read.csv('/labs/shahlab/OSIM2/covariate.csv', check.names=T)
 
-
 #-----------------------------------------------------------------------------
 # Simulate and format data
 #-----------------------------------------------------------------------------
@@ -19,7 +18,6 @@ conf.case = 2   # moderate
 # TE.type = 0 # Zero effect
 TE.type = 1 # marginal effect of 1
 # TE.type = 2 # non-linear HTE
-
 
 ## Simulate data 
 seed = as.numeric(sample(1:1000, 1))
@@ -34,11 +32,8 @@ round(table(simData$Y)/N*100, digits=1)
 par(mfrow=c(1,2)); hist(simData$tau); hist(simData$TE)
 # tau is the coefficient on the linear scale; TE is on probability scale
 
-
 ## Sample size
-# s = 1   # original sample size
-s = 20000/0.8/N
-
+s = 1   # original sample size
 
 ## Define sample size and randomly partition original records into training and test records
 Nsamp = ceiling(N * s)
@@ -65,4 +60,3 @@ write.table(dtest, file='/scratch/users/naromano/OSIM2/dtest.txt',
             sep="\t", row.name=F, col.name=T)
 
 rm(lSim, simData)
-

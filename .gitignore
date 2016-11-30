@@ -1,0 +1,23 @@
+# Ignore python binaries
+*.pyc
+py/*pyc
+
+# Ignore R data and output
+*.Rout
+*.RData
+*.txt
+R/*.txt
+tmp/
+R/tmp
+R/*.RData
+R/*.Rout
+
+# Ignore plots
+*.pdf
+R/*.pdf
+py/*.pdf
+
+# Ignore python output
+.ipynb_checkpoints/
+py/.ipynb_checkpoints/
+

@@ -5,14 +5,12 @@
 #    conf.case: 1, 2, or 3 for confounding strength
 #    TE.type: 0, 1, 2 for zero effect, homogeneous, non-linear heterogeneous
 simulateTreatmentEffect = function (covariate, seed, conf.case, TE.type) {
-  # rm(list=ls())
+
   library(logitnorm)
-  # covariate <- read.csv("/labs/shahlab/OSIM2/covariate.csv", check.name=T)
   colnames(covariate)[2] <- 'YOB'
-  X <- as.matrix(covariate[ ,-c(1,432)]) # remove PERSON_ID abd 'Type 2 diabetes' status
-  X[,1] <- scale(X[,1])   # scale (center and standardise) YOB
+  X <- as.matrix(covariate[ ,-c(1, 432)]) # remove PERSON_ID
+  X[, 1] <- scale(X[, 1])   # scale (center and standardise) YOB
   rm(covariate)
- 
   
   #----------------------------------------------------------------------
   # Input Parameters
@@ -39,7 +37,6 @@ simulateTreatmentEffect = function (covariate, seed, conf.case, TE.type) {
   # seed = 12345
   set.seed(seed)
   
-  
   #----------------------------------------------------------------------
   #  Identify 19 most dense binary features
   #----------------------------------------------------------------------
@@ -48,14 +45,14 @@ simulateTreatmentEffect = function (covariate, seed, conf.case, TE.type) {
   # prev <- prev[order(prev[,'tb'], decreasing = T), ]
   # idx.dense <- prev[1:19,'idx']  
   # idx.cov <- c(1, idx.dense)   
-  # Ncov = 20 (YOB + 19 most dense binary variables as covariate), Nnoise = 678 (97%)
-  idx.cov <- c(1, 693, 2, 106, 503, 559, 129, 474, 690, 205, 692, 286, 596, 665, 648, 631, 210, 658, 421, 607)
+  # Ncov = 20 (YOB + 19 most dense binary variables as covariate)
+  idx.cov <- c(1, 693, 2, 106, 503, 559, 129, 474, 690, 205, 692, 286, 596, 
+               665, 648, 631, 210, 658, 421, 607)
   Xc   = X[,idx.cov[1:5]]
   Xe   = X[,idx.cov[6:10]]
   Xo   = X[,idx.cov[11:15]]
   Xtau = X[,idx.cov[16:20]]
-  
-  
+
   #----------------------------------------------------------------------
   #  Simulate exposure - based on Austin (2015)
   #----------------------------------------------------------------------
@@ -71,7 +68,7 @@ simulateTreatmentEffect = function (covariate, seed, conf.case, TE.type) {
   slopes = sapply(1:N, function(i) alpha %*% Xtemp[i,])
   # par(mfrow = c(1,2)); hist(slopes); hist(invlogit(slopes))
   slopes.mean = mean(slopes)
-  a = c(1.79, 2.064, 2.8)   # Determined iteratively to have mean(e)=0.2 -> Not elegant
+  a = c(1.79, 2.064, 2.8)  # Determined iteratively to have mean(e)=0.2
   alpha0 = -a[conf.case] - slopes.mean
   # mean(invlogit(slopes + alpha0))
   t.e = sapply(1:N, function(i) { alpha0 + alpha %*% Xtemp[i,] })
@@ -81,14 +78,11 @@ simulateTreatmentEffect = function (covariate, seed, conf.case, TE.type) {
   ## Generate a Bernoulli distribution with probability ps
   Z = rbinom(N , 1, e) 
   # round(table(Z)/N*100, digits=1)
-  
   covNames.Z <- colnames(Xtemp)
 
-  
   #----------------------------------------------------------------------
   #  Simmulate treatment effect 
   #----------------------------------------------------------------------
-  
   tau = t.tau = rep(0, N)
   covNames.tau <- NULL
   if (TE.type==1) { 
@@ -97,14 +91,13 @@ simulateTreatmentEffect = function (covariate, seed, conf.case, TE.type) {
     slopes = sapply(1:N, function(i) beta %*% Xtemp[i,])
     # par(mfrow = c(1,2)); hist(slopes); hist(invlogit(slopes))
     slopes.mean = mean(slopes)
-    beta0 = 1.642 - slopes.mean   # Determined iteratively to have mean(tau)=0.693 -> Not elegant
+    beta0 = 1.642 - slopes.mean 
     t.tau = sapply(1:N, function(i) { beta0 + beta %*% Xtemp[i,] })   
     min = -2; max = 2
     tau = min + (max - min) * invlogit(t.tau)
     # par(mfrow = c(1,2)); hist(t.tau); hist(tau); mean(tau)
     covNames.tau <- colnames(Xtemp)
   }
-  
   
   #----------------------------------------------------------------------
   #  Simmulate outcome
@@ -118,7 +111,7 @@ simulateTreatmentEffect = function (covariate, seed, conf.case, TE.type) {
   slopes = sapply(1:N, function(i) gamma %*% Xtemp[i,])
   # par(mfrow = c(1,2)); hist(slopes); hist(invlogit(slopes))
   slopes.mean = mean(slopes)
-  gamma0 = -2.9 - slopes.mean   # Determined iteratively to have mean(pZ0)=0.2 -> Not elegant
+  gamma0 = -2.9 - slopes.mean
   # mean(invlogit(slopes + gamma0))
   t.pZ0 = sapply(1:N, function(i) { gamma0 + gamma %*% Xtemp[i,] })
   pZ0 = invlogit(t.pZ0)
@@ -131,24 +124,18 @@ simulateTreatmentEffect = function (covariate, seed, conf.case, TE.type) {
   po = invlogit(t.po)
   # par(mfrow = c(1,2)); hist(t.po); hist(po); mean(t.po); mean(po)
   
-  
   ## Generate a Bernoulli distribution with probability ps
   Y = rbinom(N , 1, po) 
   # round(table(Y)/N*100, digits=1)
   
   covNames.Y <- colnames(Xtemp)
   
-  
   #----------------------------------------------------------------------
   # SAVE DATA
   #----------------------------------------------------------------------
   simData=data.frame(X, Z, Y, e, po, tau, TE)
   # head(simData, 20)
-  
   covNames <- list(Z = covNames.Z, Y = covNames.Y, tau = covNames.tau)
-  
   return(list(simData = simData, covNames = covNames))
   
 }
-### END
-

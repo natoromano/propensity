@@ -8,6 +8,7 @@
 source("utils.R")
 
 installnewpackage(c("rJava", "flexmix", "ROCR", "Epi", "reshape", "scales"))
+
 require(flexmix)
 require(rJava)
 require(ROCR)
@@ -118,7 +119,7 @@ hdpsMatch <- function(data, ps, mode="GREEDY_CALIPER", k=1, caliper=0.05,
   if (exists("m")) rm("m")
   m <- .jnull("org.drugepi.match.Match")
   m <- .jnew("org.drugepi.match.Match");
-  .jcall(m, "V", "initMatch", mode, ngroups)  # nn = nearest neighbor; 2 groups
+  .jcall(m, "V", "initMatch", mode, ngroups) # nn = nearest neighbor; 2 groups
   
   # set parameters for matching (java)
   # variable-ratio mode otherwise
@@ -146,19 +147,18 @@ hdpsMatch <- function(data, ps, mode="GREEDY_CALIPER", k=1, caliper=0.05,
   
   # enter data into match java object
   match_header <- paste(colnames(cohort), collapse="\t")
-  match_data <- paste(paste(cohort[,1], cohort[,2], 
-                            cohort[,3], sep="\t"), collapse="\n")
-  
+  match_data <- paste(paste(cohort[, 1], 
+                            cohort[, 2], 
+                            cohort[, 3], sep="\t"), collapse="\n")
+
   .jcall(m, "V", "addPatientsFromBuffer", paste(match_header, 
                                                 match_data, sep="\n"));
   
   # run matching.class
   cat("Pharmacoepi Toolbox", .jfield(m, name="version"), "\n")
-  tryCatch( .jcall(m, "V", "run"), 
-            NumberFormatException = function(e) {
-              e$jobj$printStackTrace() 
-            }
-  )
+  .jcall(m, "V", "run")
+  
+  cat("Outfile is", .jfield(m, name="outfilePath"), "\n")
   
   # output matches.txt
   matches <- read.table(output_matchfile, header=TRUE, sep="\t");
@@ -180,7 +180,7 @@ psDiag <- function(m, ps, exposurevec, outfile=NULL, verbose=TRUE,
                    printvalues=TRUE, ylim=NULL) {
   # Note: this works for 1:1 matching only
   # conditions for matching object
-  if (sum(grepl("^mobj$",names(m)))) { # for hdps object
+  if (sum(grepl("^mobj$", names(m)))) { # for hdps object
     trtedID <- as.character(m$matchedsets[, "1"]) # patient id in char
     ctrlID <- as.character(m$matchedsets[, "0"])
   } else if (sum(grepl("^index.control$", names(m)))){ # for matching obj
@@ -331,8 +331,8 @@ extractResults<-function(ps, exposurevec, data, fmod=NULL, id=id,
   # If using propensity scores (i.e. ps is vector of ps, not list object)
   if(!is.list(ps)){
     # Define optimal caliper
-    # using Austin 2011 recommendation of 0.2*sd(logit(PS))
-    # Rosenbaum recommends 0.25sd(PS) in his book
+    # using Austin 2011 recommendation of 0.2 * sd(logit(PS))
+    # Rosenbaum recommends 0.25 * sd(PS) in his book
     # (the two converges if ps is small)
     # Downsample by matching (calls Java org.drugepi.match.Match)
     # create cohort data matrix: should contain 3 columns (id, exposed, ps)
@@ -343,8 +343,8 @@ extractResults<-function(ps, exposurevec, data, fmod=NULL, id=id,
     
     # try to use PS as logit form
     optcaliper <- 0.2 * sd(ps, na.rm=T)
-    matchedsets <- hdpsMatch(data[,c(id,exposed)], ps, mode="GREEDY_CALIPER",
-                             k=1, caliper=optcaliper)
+    matchedsets <- hdpsMatch(data[, c(id, exposed)], ps, 
+                             mode="GREEDY", k=1, caliper=optcaliper)
     
     # diagnostics for matching
     if (logitFlag==TRUE) {
