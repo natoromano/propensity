@@ -5,7 +5,6 @@ load and processing.
 
 import numpy as np
 
-
 DEFAULT_PATH = "/scratch/users/naromano/OSIM2"
 
 
