@@ -5,8 +5,6 @@
 # Nathanael Romano
 ###############################################################################
 
-source("utils.R")
-
 installnewpackage(c("rJava", "flexmix", "ROCR", "Epi", "reshape", "scales"))
 
 require(flexmix)
@@ -342,9 +340,11 @@ extractResults<-function(ps, exposurevec, data, fmod=NULL, id=id,
     }
     
     # try to use PS as logit form
-    optcaliper <- 0.2 * sd(ps, na.rm=T)
+    optcaliper <- sd(ps, na.rm=T)
+    hist(unlogit(ps))
+    print(optcaliper)
     matchedsets <- hdpsMatch(data[, c(id, exposed)], ps, 
-                             mode="GREEDY", k=1, caliper=optcaliper)
+                             mode="NEAREST_NEIGHBOR", k=1, caliper=optcaliper)
     
     # diagnostics for matching
     if (logitFlag==TRUE) {

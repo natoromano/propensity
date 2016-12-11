@@ -18,10 +18,10 @@ def load_data(path=None):
     dtrain = Dataset(path + "/dtrain.txt")
     dval1 = Dataset(path + "/dval1.txt")
     # Don't touch!
-    # dval2 = Dataset(path + "/dval2.txt")
-    # dtest = Dataset(path + "/dtest.txt")
+    dval2 = Dataset(path + "/dval2.txt")
+    dtest = Dataset(path + "/dtest.txt")
 
-    return Datasets(train=dtrain, val1=dval1)
+    return Datasets(train=dtrain, val1=dval1, val2=dval2, test=dtest)
 
 
 
@@ -56,7 +56,7 @@ class Dataset(object):
         data = np.loadtxt(
             path, 
             skiprows=1, 
-            usecols=range(704)[:-4]
+            usecols=range(704)[:-5]
         )
         self._patients = data[:, :-1]
         self._labels = np.zeros((data.shape[0], 2))

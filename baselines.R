@@ -8,7 +8,7 @@
 
 rm(list=ls())
 setwd("/home/naromano/propensity")
-source("utils.R")
+source("R/utils.R")
 
 ############# IMPORTS #############
 installnewpackage(c("rJava", "Matching", "Epi", "glmnet", "randomForest", 
