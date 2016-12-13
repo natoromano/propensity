@@ -91,10 +91,10 @@ if __name__ == "__main__":
 
         # Extract activations
         extract_activations(
-            x, y_, y_scores, datasets.val2, "val2_{}".format(outDim)
+            x, y_, h3, datasets.val2, "val2_{}".format(outDim)
         )
         extract_activations(
-            x, y_, y_scores, datasets.test, "test_{}".format(outDim)
+            x, y_, h3, datasets.test, "test_{}".format(outDim)
         )
         
         sess.close()

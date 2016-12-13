@@ -78,7 +78,7 @@ matchedID <- list()
 
 dtrain$id <- 1:nrow(dtrain)
 nminor <- min(table(dtrain[, exposed]))
-trueCoeff <- mean(dtrain$TE)
+trueCoeff <- mean(dtrain$tau)
 trueOR <- exp(trueCoeff)
 Nexposed <- sum(dtrain[, exposed])
 Noutcomes <- sum(dtrain[, outcome])

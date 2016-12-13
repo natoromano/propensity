@@ -557,7 +557,7 @@ uniqueNN <- function(relevantNN, NNnames) {
   
   for (i in 1:length(dupNN)) {
     # print(i)
-    j=2
+    j <- 2
     temp <- relevantNN[dupNN[i], j]  # get 2nd nearest neighbor
     # print(temp)
     while (!is.na(temp)) {
@@ -579,8 +579,9 @@ uniqueNN <- function(relevantNN, NNnames) {
       }
     }
     if(is.na(temp)){  #if next NN is NA
-      relevantNN=relevantNN[!(rownames(relevantNN) %in% dupNN[i]),] #remove entire row
-      #print("temp is na. Drop Row")
+      relevantNN <- relevantNN[!(rownames(relevantNN) %in% dupNN[i]),] 
+      # remove entire row
+      # print("temp is na. Drop Row")
     }
   }
   

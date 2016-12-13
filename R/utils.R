@@ -50,7 +50,7 @@ matchStats <- function(numvar, catvar, treatment, data,
   catvarlist <- list()
   for(i in 1:length(catvar)) {
     if(verbose==TRUE) cat("\n", "\n", catvar[i], "\n")
-    tab <- table(data[,catvar[i]], data[,treatment], useNA="ifany")
+    tab <- table(data[, catvar[i]], data[,treatment], useNA="ifany")
     pctTab <- prop.table(tab,2)
     mat <- cbind(tab[,1], pctTab[,1], tab[,2], pctTab[,2])
     colnames(mat) <- c("nX", "%X", "nY", "%Y")
