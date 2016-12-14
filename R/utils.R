@@ -6,6 +6,8 @@
 ###############################################################################
 
 require(xlsx)
+require(reshape)
+require(ggplot2)
 
 
 # INSTALL NEW PACKAGE
@@ -16,6 +18,27 @@ installnewpackage <- function(reqpackages) {
   }
 }
 
+
+# PLOTTING METHODS
+plotSMD <- function(smdMat, order="before", exclude=c("naive"), numVar=25,
+                    method=NULL) {
+  if (is.null(methods)) {
+    methods <- colnames(smdMat)
+  }
+  smdMat <- smdMat[order(-smdMat[, "before"]), ]
+  data <- abs(smdMat[, setdiff(colnames(smdMat), exclude)])[1:numVar, ]
+  datamelt <- melt(data, measure.vars=methods)
+  colnames(datamelt) <- c('variable', 'Method', 'SMD')
+  varNames <- as.character(rownames(data))[order(data[, "before"])]
+  datamelt$variable <- factor(datamelt$variable, levels=varNames)  
+  ggplot(data = datamelt, mapping = aes(x = variable, y = SMD,
+                                        group = Method, color = Method)) +
+    geom_line() +
+    geom_point() +
+    geom_hline(yintercept = 0.1, color = "black", size = 0.1) +
+    coord_flip() +
+    theme_bw() + theme(legend.key = element_blank())
+}
 
 # LASSO HELPERS
 coeffAtlambda <- function(cvfit,lambda="lambda.1se") {

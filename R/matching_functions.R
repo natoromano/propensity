@@ -68,6 +68,7 @@ extractResults <- function(matchedData, exposed, outcome, verbose=FALSE,
   if (!is.null(model)) {  # if clogit is possible
     coeff <- coef(model)[exposed]
     se_matched <- sqrt(diag(model$var)[exposed])
+    print(se_matched)
     # extract results of interest
     results <- c(coeff=coeff[[1]], se=se_matched, smd=Smd[[1]])
   } else {
