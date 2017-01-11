@@ -1,21 +1,19 @@
 ###############################################################################
 # (Script)
-# Matches on all dimensions's representations.
-# Uses validation set 2.
+# Apply baseline methods to OSIM2 simulated data.
 #
 # Nathanael Romano
 ###############################################################################
-.libPaths(c("~/R/x86_64-redhat-linux-gnu-library/3.1", .libPaths()))
-
 rm(list=ls())
 setwd("/home/naromano/propensity")
 source("R/utils.R")
 
 ############# IMPORTS #############
-installnewpackage(c("rJava", "Matching", "Epi", "glmnet", "randomForest", 
-                    "vegan", "FNN", "Matrix", "doParallel", "foreach"))
+installnewpackage(
+  c("Matching", "Epi", "glmnet", "randomForest", 
+    "vegan", "FNN", "Matrix", "doParallel", "foreach")
+)
 
-require(rJava)
 require(Matching)
 require(Epi)  # clogistic
 require(glmnet)
@@ -33,140 +31,138 @@ cl <- makeCluster(10)
 registerDoParallel(cl)
 
 ############# SET-UP #############
-
-baseDir <- getwd();
-tempDir <- paste(baseDir, "tmp", sep="/") # output directory
-patientfile <- paste(baseDir, "patients.txt", sep="/")
-dir.create(tempDir)
-
-# initialize the Java subsystem. include a jdbc object
-.jinit(classpath="/home/naromano/software/pharmacoepi.jar", 
-       force.init=TRUE, parameters="-Xmx12gm");
-.jclassPath()
-
 # required functions
 source("R/matching_functions.R")
 
 # load data
-dval <- read.table("/scratch/users/naromano/OSIM2/dval2.txt", header=T)
+dtrain <- read.table("/scratch/users/naromano/OSIM2/dval2.txt", header=T)
 
 # define covariate names
 id <- "id"
 exposed <- "Z"
 outcome <- "Y"
-empvariables <- setdiff(colnames(dval), c("Z", "Y", "e", "po", "tau", "TE"))
+effect <- "TE"
+# empirical variables may be matched depending on HD-PS
+empvariables <- setdiff(
+  colnames(dtrain), c("Z", "Y", "e", "po", "tau", "TE")
+)
 empvariables_num <- c("YOB")
 empvariables_cat <- setdiff(empvariables, empvariables_num)
+form = as.formula(
+  paste(exposed, paste(empvariables, collapse=" + "), sep=" ~ ")
+)
 
-desiredOrder <- c("n1", "ORmatched", "ORlow_matched", "ORupp_matched",
-                  "coeff_matched", "se_matched", "bias_matched", "inCI_matched",
-                  "n0", "ORadj", "ORlow_adj", "ORupp_adj", "coeff_adj",
-                  "se_adj", "bias_adj", "inCI_adj", "SMD", "KS", "KL", "Cstat")
+# simpler formula for direct matching
+empvariables_subset = c("YOB", "GENDER", 
+                        empvariables[sample(3:length(empvariables), size=100)])
+form_subset = as.formula(
+  paste(exposed, paste(empvariables_subset, collapse=" + "), sep=" ~ ")
+)
 
 # prepare result arrays
 startAll <- proc.time()[1:3]
-Nmethods <- 9
-resultsArray <- array(dim=c(Nmethods, 20))  
-pmatArray <- array(dim=c(Nmethods + 1, length(empvariables)))
-smdmatArray <- pmatArray
+Nmethods <- 10
+smdmatArray <- array(dim=c(Nmethods + 1, length(empvariables)))
 time <- array(dim=c(Nmethods, 3))
-dimnames(time)[[1]] <- 2:10
+dimnames(time)[[1]] <- c(2:10, "PSM")
 dimnames(time)[[2]] <- c("user", "system", "elapsed")
-dimnames(resultsArray)[[1]] <- dimnames(time)[[1]]
 matchedID <- list()
 
-dval$id <- 1:nrow(dval)
-nminor <- min(table(dval[, exposed]))
-trueCoeff <- mean(dval$tau)
-trueOR <- exp(trueCoeff)
-Nexposed <- sum(dval[, exposed])
-Noutcomes <- sum(dval[, outcome])
+dtrain$id <- 1:nrow(dtrain)
+nminor <- min(table(dtrain[, exposed]))
+Nexposed <- sum(dtrain[, exposed])
+Noutcomes <- sum(dtrain[, outcome])
 
-results <- c()
+############# BASELINE: PSM #############
+print("############ PSM ############")
+start = proc.time()[1:3]
+
+# have to compute dircectly as calling from matching_function bugs
+m.out <- matchit(formula=form, data=dtrain, method="nearest", 
+                 distance="linear.logit", caliper=0.5, m.order="random")
+matchedData <- match.data(m.out)
+lassoResults <- extractResults(matchedData, exposed, outcome, verbose=FALSE,
+                               method="DA", fmod=NULL)
+lassoResults[[1]]["bias"] <- lassoResults[[1]]["coeff"] - 
+  mean(matchedData[, effect])
+lassoResults[[1]]["MSE"] <- mean(
+  (lassoResults[[1]]["coeff"] - matchedData[, effect]) ** 2
+)
+
+end <- proc.time()[1:3]
+time["PSM",] <- end-start
+
+############# REPRESENTATIONS #############
+print("############ REPRESENTATIONS ############")
+results <- list()
 matchedID <- list()
+
+a = lolsakp
 
 for (dim in 2:10) {
+  print(paste("DIMENSION", dim))
   name = paste("layerval2_", dim, ".txt", sep="")
-  xmat = read.table(paste("/scratch/users/naromano/OSIM2/", name, sep=""), 
-                    header=F)
-  xmat_ctrl <- xmat[dval[, exposed]==0,]
-  xmat <- as.data.frame(scale(xmat))
-  xmat_ctrl <- xmat[dval[, exposed]==0,]
-  xmat_trted <- xmat[dval[, exposed]==1,]
-  rownames(xmat_ctrl) <- dval[dval[, exposed]==0, id]
-  rownames(xmat_trted) <- dval[dval[, exposed]==1, id]
-  
-  runSimPS <- function(method="euclidean", caliper=0.7, nsd=3,
-                       algorithm="kd_tree"){
-    matchedSim <- matchByDist(xmat_ctrl, xmat_trted, method=method,
-                              k_neighbors=5, caliper=caliper, nsd=nsd,
-                              algorithm=algorithm)
-    simResults <- extractResults(ps=matchedSim, exposurevec=NULL,
-                                 data=dval, fmod=NULL, id=id, exposed=exposed,
-                                 outcome=outcome, logitFlag=F,
-                                 outfile=NULL, verbose=FALSE)
-    return(simResults)
-  }
-  
-  start <- proc.time()[1:3]
-  euclideanResults <- runSimPS(method="euclidean", caliper=0.8,
-                               nsd=0.25, algorithm="brute")
-  results[dim-1] <- euclideanResults
-  matchedID[[dim-1]] <- euclideanResults[[2]]
+  dt = read.table(
+    paste("/scratch/users/naromano/OSIM2/", name, sep=""), header=F
+  )
+  vars <- paste("X", 1:ncol(dt), sep="")
+  colnames(dt) <- vars
+  dt[, exposed] <- dtrain[, exposed]
+  form = as.formula(
+    paste(exposed, paste(vars, collapse=" + "), sep=" ~ ")
+  )
+  matchedData <- match(data=dtrain, formula=form, representation=dt, fmod=NULL, 
+                       id=id, exposed=exposed, outcome=outcome, 
+                       method="representation")
+  representationResults <- extractResults(matchedData, exposed, outcome, 
+                                          verbose=FALSE, method="DA")
+  results[[dim-1]] <- representationResults[[1]]
+  results[[dim-1]]["bias"] <- results[[dim-1]]["coeff"]-mean(matchedData[, effect])
+  results[[dim-1]]["MSE"] <- mean(
+    (results[[dim-1]]["coeff"] - matchedData[, effect]) ** 2
+  )
+  matchedID[[dim-1]] <- representationResults[[2]]
   
   end <- proc.time()[1:3]
-  time[dim-1,] <- end-start
-
+  time[dim-1, ] <- end-start
 }
 
+# consolidate results
+resultsmat <- results[[1]]
+for (i in 2:9) {
+  resultsmat <- rbind(resultsmat, results[[i]])
+}
+resultsmat <- rbind(resultsmat, lassoResults[[1]])
+rownames(resultsmat) <- dimnames(time)[[1]]
+
+# consolidate matched IDs
+matchedID[[10]] <- lassoResults[[2]]
 names(matchedID) <- dimnames(time)[[1]]
 
 # check if baseline variables are balanced
 beforeMatching <- matchStats(numvar=empvariables_num, catvar=empvariables_cat,
-                             treatment=exposed, data=dval,
+                             treatment=exposed, data=dtrain,
                              outXlsx=NULL, verbose=FALSE)
 afterMatching <- list()
-for(j in 1:9){
+for(j in 1:Nmethods) {
+  # naive req special handling (shouldn't be matched)
     afterMatching[[j]] <- matchStats(numvar=empvariables_num,
                                      catvar=empvariables_cat,
                                      treatment=exposed,
-                                     data=dval[matchedID[[j]],],
+                                     data=dtrain[matchedID[[j]],],
                                      outXlsx=NULL, verbose=FALSE)
 }
 names(afterMatching) <- names(matchedID)
 
-# extract pval matrix
-# initialize pmat vector with beforeMatching
-pmat <- extractPval(beforeMatching)
-
-# append pmat vector with afterMatching
-pmat <- cbind(pmat, sapply(afterMatching, extractPval))
-colnames(pmat)[1] <- "before"
-
-# extract smd matrix
+# extract SMD matrix
 # initialize smdmat vector with beforeMatching
 smdmat <- extractSmd(beforeMatching)
 # append smdmat vector with afterMatching
 smdmat <- cbind(smdmat, sapply(afterMatching, extractSmd))
 colnames(smdmat)[1] <- "before"
-smdmat <- cbind(smdmat)
 
-# consolidate results
-resultsmat <- results[1][[1]]
-for (i in 2:9) {
-  resultsmat <- rbind(resultsmat, results[i][[1]])
-}
-resultsmat <- as.data.frame(resultsmat)
-rownames(resultsmat) <- dimnames(time)[[1]]
-resultsmat$bias_adj <- resultsmat$coeff_adj-trueCoeff
-resultsmat$bias_matched <- resultsmat$coeff_matched-trueCoeff
-resultsmat$inCI_adj <- (resultsmat$ORlow_adj<=trueOR &
-                          resultsmat$ORupp_adj>=trueOR)
-resultsmat$inCI_matched <- (resultsmat$ORlow_matched<=trueOR & 
-                              resultsmat$ORupp_matched>=trueOR)
-resultsArray <- as.matrix(resultsmat[, desiredOrder])
-pmatArray <- t(pmat[empvariables,])
-smdmatArray <- t(smdmat[empvariables,])
+# get result arrays
+resultsArray <- as.matrix(resultsmat)
 
 endAll <- proc.time()[1:3]
 endAll-startAll
@@ -174,8 +170,7 @@ endAll-startAll
 # remember to terminate the cores when done
 stopCluster(cl)
 
-dimnames(resultsArray) <- list(rownames(resultsmat), desiredOrder)
-dimnames(pmatArray) <- list(colnames(pmat), empvariables)
-dimnames(smdmatArray) <- list(colnames(smdmat), empvariables)
 save(resultsArray, time, matchedID, Noutcomes,
-     Nexposed, trueCoeff, pmatArray, smdmatArray, file="results.RData")
+     Nexposed, smdmat, file="results.RData")
+
+closeAllConnections()

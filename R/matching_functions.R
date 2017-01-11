@@ -34,7 +34,7 @@ match <- function(data, formula, representation=NULL, fmod=NULL,
     m.data <- match.data(m.out)
     
     m.data <- cbind(m.data, data[rownames(m.data), ])
-    m.data <- m.data[, c(colnames(data), "distance")]
+    m.data <- m.data[, c(colnames(data))]
   } else if (method == "similarity") {
     m.out <- matchit(formula=formula, data=data, method="nearest", 
                      distance="mahalanobis", m.order="random")
@@ -67,8 +67,7 @@ extractResults <- function(matchedData, exposed, outcome, verbose=FALSE,
   
   if (!is.null(model)) {  # if clogit is possible
     coeff <- coef(model)[exposed]
-    se_matched <- sqrt(diag(model$var)[exposed])
-    print(se_matched)
+    se_matched <- sqrt(vcov(model)[exposed, exposed])
     # extract results of interest
     results <- c(coeff=coeff[[1]], se=se_matched, smd=Smd[[1]])
   } else {

@@ -101,8 +101,8 @@ matchedData <- match(data=dtrain, formula=form_subset, representation=NULL,
                      method="similarity")
 similarityResults <- extractResults(matchedData, exposed, outcome, 
                                     verbose=FALSE, method="DA", fmod=NULL)
-similarityResults[[1]]["bias"] <- similarityResults[[1]]["coeff"] 
-- mean(matchedData[, effect])
+similarityResults[[1]]["bias"] <- similarityResults[[1]]["coeff"] - 
+                                    mean(matchedData[, effect])
 similarityResults[[1]]["MSE"] <- mean(
   (similarityResults[[1]]["coeff"] - matchedData[, effect]) ** 2
 )
@@ -120,7 +120,7 @@ naiveResults <- extractResults(
   method="naive", fmod=NULL
 )
 naiveResults[[1]]["bias"] <- naiveResults[[1]]["coeff"] - 
-  mean(matchedData[, effect])
+                                mean(matchedData[, effect])
 naiveResults[[1]]["MSE"] <- mean(
   (naiveResults[[1]]["coeff"] - matchedData[, effect]) ** 2
 )
@@ -177,3 +177,5 @@ stopCluster(cl)
 dimnames(smdmatArray) <- list(colnames(smdmat), empvariables)
 save(resultsArray, time, matchedID, Noutcomes,
      Nexposed, smdmatArray, file="baseline_results.RData")
+
+closeAllConnections()

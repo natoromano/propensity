@@ -21,12 +21,12 @@ installnewpackage <- function(reqpackages) {
 
 # PLOTTING METHODS
 plotSMD <- function(smdMat, order="before", exclude=c("naive"), numVar=25,
-                    method=NULL) {
+                    methods=NULL) {
   if (is.null(methods)) {
     methods <- colnames(smdMat)
   }
   smdMat <- smdMat[order(-smdMat[, "before"]), ]
-  data <- abs(smdMat[, setdiff(colnames(smdMat), exclude)])[1:numVar, ]
+  data <- abs(smdMat[, setdiff(methods, exclude)])[1:numVar, ]
   datamelt <- melt(data, measure.vars=methods)
   colnames(datamelt) <- c('variable', 'Method', 'SMD')
   varNames <- as.character(rownames(data))[order(data[, "before"])]
