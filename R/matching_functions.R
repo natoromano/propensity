@@ -26,11 +26,18 @@ match <- function(data, formula, representation=NULL, fmod=NULL,
 
   if (method == "PSM") {
     m.out <- matchit(formula=formula, data=data, method="nearest", 
-                     distance="linear.logit", caliper=0.5, m.order="random")
+                     distance="linear.logit", caliper=0.25, m.order="random")
     m.data <- match.data(m.out)
   } else if (method == "representation") {
     m.out <- matchit(formula=formula, data=representation, method="nearest", 
-                     distance="mahalanobis", m.order="random")
+                     distance="mahalanobis", caliper=0.25, m.order="random",
+                     mahvars=c("X1", "X2", "X3"))
+    m.data <- match.data(m.out)
+    
+    m.data <- cbind(m.data, data[rownames(m.data), ])
+    m.data <- m.data[, c(colnames(data), "distance")]
+  } else if (method == "cem") {
+    m.out <- matchit(formula=formula, data=representation, method="cem")
     m.data <- match.data(m.out)
     
     m.data <- cbind(m.data, data[rownames(m.data), ])
@@ -52,7 +59,7 @@ extractResults <- function(matchedData, exposed, outcome, verbose=FALSE,
   } 
   
   if (method == "clogit") {
-    tryobj3 <- try(clogistic(fmod, strata="set_num", data=matchedData))
+    tryobj3 <- try(clogistic(fmod, strata=set_num, data=matchedData))
     if (class(tryobj3)!="try-error") model <- tryobj3 else model <- NULL
   } else if (method == "DA") {
     model <- glm(fmod, data=matchedData)

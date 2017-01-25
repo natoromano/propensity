@@ -15,11 +15,11 @@ def load_data(path=None):
     if path is None:
         path = DEFAULT_PATH
         
-    dtrain = Dataset(path + "/dtrain.txt")
-    dval1 = Dataset(path + "/dval1.txt")
+    dtrain = Dataset(path + "/dtrain_small.txt")
+    dval1 = Dataset(path + "/dval1_small.txt")
     # Don't touch!
-    dval2 = Dataset(path + "/dval2.txt")
-    dtest = Dataset(path + "/dtest.txt")
+    dval2 = Dataset(path + "/dval2_small.txt")
+    dtest = Dataset(path + "/dtest_small.txt")
 
     return Datasets(train=dtrain, val1=dval1, val2=dval2, test=dtest)
 

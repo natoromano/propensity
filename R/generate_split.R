@@ -3,7 +3,7 @@
 
 rm(list=ls())
 setwd("/home/naromano/propensity/")
-source("simulate_effect.R")
+source("R/simulate_effect.R")
 covariate <- read.csv('/labs/shahlab/OSIM2/covariate.csv', check.names=T)
 
 #-----------------------------------------------------------------------------
@@ -11,8 +11,8 @@ covariate <- read.csv('/labs/shahlab/OSIM2/covariate.csv', check.names=T)
 #-----------------------------------------------------------------------------
 ## Confounding magnitude
 # conf.case = 1   # low
-conf.case = 2   # moderate
-# conf.case = 3   # high
+# conf.case = 2   # moderate
+conf.case = 3   # high
 
 ## Type of Treatment Effect
 # TE.type = 0 # Zero effect
@@ -33,13 +33,14 @@ par(mfrow=c(1,2)); hist(simData$tau); hist(simData$TE)
 # tau is the coefficient on the linear scale; TE is on probability scale
 
 ## Sample size
-s = 1   # original sample size
+s = 0.1   # original sample size
 
-## Define sample size and randomly partition original records into training and test records
+## Define sample size and randomly partition original records into training 
+# and test records
 Nsamp = ceiling(N * s)
 Ntrain <- ceiling(0.55 * Nsamp)
-Nval1 <- ceiling(0.25 * Nsamp)
-Nval2 <- ceiling(0.12 * Nsamp)
+Nval1 <- ceiling(0.12 * Nsamp)
+Nval2 <- ceiling(0.25 * Nsamp)
 Ntest <- Nsamp - Ntrain - Nval1 - Nval2
 idx.train <- sample(1:N, Ntrain, replace=F)
 idx.val1 <- sample(c(1:N)[-idx.train], Nval1, replace=F)
@@ -50,13 +51,13 @@ dval1 <- simData[idx.val1, ]
 dval2 <- simData[idx.val2, ]
 dtest <- simData[idx.test, ]
 
-write.table(dtrain, file='/scratch/users/naromano/OSIM2/dtrain.txt',
+write.table(dtrain, file='/scratch/users/naromano/OSIM2/dtrain_small.txt',
             sep="\t", row.name=F, col.name=T)
-write.table(dval1, file='/scratch/users/naromano/OSIM2/dval1.txt',
+write.table(dval1, file='/scratch/users/naromano/OSIM2/dval1_small.txt',
             sep="\t", row.name=F, col.name=T)
-write.table(dval2, file='/scratch/users/naromano/OSIM2/dval2.txt',
+write.table(dval2, file='/scratch/users/naromano/OSIM2/dval2_small.txt',
             sep="\t", row.name=F, col.name=T)
-write.table(dtest, file='/scratch/users/naromano/OSIM2/dtest.txt',
+write.table(dtest, file='/scratch/users/naromano/OSIM2/dtest_small.txt',
             sep="\t", row.name=F, col.name=T)
 
 rm(lSim, simData)
